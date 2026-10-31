@@ -5,17 +5,21 @@ using System.Text.Json;
 
 namespace FlightFinder
 {
-	public class Flight
+	public class Flight : IFlight
 	{
 		private readonly HttpClient _client = new HttpClient();
 		private readonly Random _random = new Random();
+		private readonly IConfiguration _configuration;
+
+		public Flight(IConfiguration configuration)
+		{
+			_configuration = configuration;
+		}
 
 		public async Task CheckFlights()
 		{
 			try
 			{
-				var url = "https://api.flytoday.ir/api/V1/Flight/SearchAnytime";
-
 				var request = new SearchAnyTimeRequest()
 				{
 					pricingSourceType = 0,
@@ -45,14 +49,14 @@ namespace FlightFinder
 				};
 
 				var reqContent = JsonContent.Create(request);
-				reqContent.Headers.Add("x-token", "61774b6a356c4561474542476f6c46683354566f5671664c424d784e4a5962776c577655306e6f3755654f37494e7a3067584e3651533670447a4a5154576b6c");
+				reqContent.Headers.Add("x-token", _configuration["FlyToday:Token"]);
 				reqContent.Headers.Add("x-app", "www.flytoday.ir");
-				reqContent.Headers.Add("x-path", "https://www.flytoday.ir/flight/any-time?departure=thr,1&arrival=syz,1&departureDate=any&adt=1&chd=0&inf=0&cabin=1&isDomestic=true&isAnyWhere=true");
+				reqContent.Headers.Add("x-path", _configuration["FlyToday:Url"]);
 
 				var agent = UserAgents.Agents[_random.Next(9)];
 				_client.DefaultRequestHeaders.Add("user-agent", agent);
 
-				var apiRes = await _client.PostAsync(url, reqContent);
+				var apiRes = await _client.PostAsync(_configuration["FlyToday:Url"], reqContent);
 				apiRes.EnsureSuccessStatusCode();
 				var resContent = await apiRes.Content.ReadAsStringAsync();
 
@@ -67,8 +71,8 @@ namespace FlightFinder
 					if (flightPrice <= 20000000)
 					{
 						var text = "Found a cheap flight dude! Check it out";
-						var smsService = new SmsIr("23uQvwg4NBujB25bcTlyr7gnxmmWUSqlZCuhLxtSpiIoKDYm");
-						var smsResult = await smsService.LikeToLikeSendAsync(30002108000958, [text], ["9199018123"]);
+						var smsService = new SmsIr(_configuration["SMS:ApiKey"]);
+						var smsResult = await smsService.LikeToLikeSendAsync(long.Parse(_configuration["LineNumber"]!), [text], [_configuration["MobileNumber"]]);
 						return;
 					}
 				}
